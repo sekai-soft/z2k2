@@ -23,6 +23,15 @@
 - Session management uses OAuth tokens from `sessions.jsonl` with round-robin rotation
 - All Twitter API code should match nitter's proven patterns
 
+## Documentation
+
+**README.md**: Do NOT include Docker or CI/CD explanations in README.md. Keep the README focused on:
+- Development setup
+- Running the application locally
+- Basic requirements
+
+Docker, CI/CD, and deployment information should be self-explanatory from the Dockerfile and workflow files.
+
 ## Code Organization
 
 **Internal vs Public API**: All methods, functions, and classes in the `z2k2/` module that are NOT used in `app.py` must be prefixed with `_` to indicate they are internal implementation details.

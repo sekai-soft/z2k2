@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Cache and databases (don't include in image)
+cache.db
+cache.db-shm
+cache.db-wal
+
+# Docs
+*.md
+!README.md
+
+# Tests
+tests/
+.pytest_cache/
+
+# Environment files
+.env
+.env.local
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
