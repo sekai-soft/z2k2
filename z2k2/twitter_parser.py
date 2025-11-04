@@ -42,8 +42,10 @@ def parse_user(user_data: Dict[str, Any]) -> User:
     """
     Parse user data from GraphQL response.
 
+    Based on nitter's parseUser implementation.
+
     Args:
-        user_data: User data from Twitter GraphQL API
+        user_data: User data from Twitter GraphQL API (user_result.result or user_results.result)
 
     Returns:
         User model
@@ -87,13 +89,14 @@ def parse_tweet_stats(legacy: Dict[str, Any]) -> TweetStats:
     )
 
 
-def parse_tweet(tweet_data: Dict[str, Any], user: Optional[User] = None) -> Optional[Tweet]:
+def parse_tweet(tweet_data: Dict[str, Any]) -> Optional[Tweet]:
     """
     Parse tweet data from GraphQL response.
 
+    Based on nitter's parseGraphTweet implementation.
+
     Args:
         tweet_data: Tweet data from Twitter GraphQL API
-        user: Optional user object (if already parsed)
 
     Returns:
         Tweet model or None if unavailable
@@ -108,19 +111,23 @@ def parse_tweet(tweet_data: Dict[str, Any], user: Optional[User] = None) -> Opti
     legacy = tweet_data.get("legacy", {})
     rest_id = tweet_data.get("rest_id", "0")
 
-    # Parse user if not provided
-    if not user:
-        user_data = tweet_data.get("core", {}).get("user_results", {}).get("result", {})
-        if user_data:
-            user = parse_user(user_data)
-        else:
-            # Fallback to minimal user
-            user = User(
-                id="0",
-                username="unknown",
-                fullname="Unknown",
-                join_date=datetime.now()
-            )
+    # Parse user from core field (nitter: parseGraphUser(js{"core"}))
+    # Try user_result first, then fall back to user_results
+    core = tweet_data.get("core", {})
+    user_data = core.get("user_result", {}).get("result", {})
+    if not user_data:
+        user_data = core.get("user_results", {}).get("result", {})
+
+    if user_data:
+        user = parse_user(user_data)
+    else:
+        # Fallback to minimal user
+        user = User(
+            id="0",
+            username="unknown",
+            fullname="Unknown",
+            join_date=datetime.now()
+        )
 
     # Parse timestamp
     created_at = legacy.get("created_at", "")
@@ -188,6 +195,8 @@ def parse_timeline_tweets(timeline_data: Dict[str, Any]) -> List[Tweet]:
     """
     Parse timeline tweets from GraphQL response.
 
+    Based on nitter's parseGraphTimeline implementation.
+
     Args:
         timeline_data: Timeline data from Twitter GraphQL API
 
@@ -197,38 +206,62 @@ def parse_timeline_tweets(timeline_data: Dict[str, Any]) -> List[Tweet]:
     tweets = []
 
     # Navigate to timeline instructions
-    timeline = timeline_data.get("data", {}).get("user", {}).get("result", {}).get("timeline_v2", {})
-    instructions = timeline.get("timeline", {}).get("instructions", [])
+    # Actual structure: data.user_result.result.timeline_response.timeline
+    user_result = timeline_data.get("data", {}).get("user_result", {}).get("result", {})
+    timeline_response = user_result.get("timeline_response", {})
+    timeline = timeline_response.get("timeline", {})
+    instructions = timeline.get("instructions", [])
 
     for instruction in instructions:
-        if instruction.get("type") == "TimelineAddEntries":
+        # Handle different instruction types
+        typename = instruction.get("__typename", "")
+
+        # Handle pinned tweets (nitter: entry → content → content → tweetResult → result)
+        if typename == "TimelinePinEntry":
+            entry = instruction.get("entry", {})
+            content = entry.get("content", {})
+            tweet_content = content.get("content", {})
+            tweet_result = tweet_content.get("tweetResult", {})
+            result = tweet_result.get("result", {})
+            tweet = parse_tweet(result)  # Don't pass user - it's in tweet's core field
+            if tweet:
+                tweet.pinned = True
+                tweets.append(tweet)
+
+        # Handle regular entries - use __typename not type
+        elif typename == "TimelineAddEntries":
             entries = instruction.get("entries", [])
 
             for entry in entries:
                 content = entry.get("content", {})
-                entry_type = content.get("entryType", "")
+                # Use __typename instead of entryType
+                content_typename = content.get("__typename", "")
 
-                if entry_type == "TimelineTimelineItem":
-                    # Single tweet
-                    item_content = content.get("itemContent", {})
-                    tweet_results = item_content.get("tweet_results", {})
-                    result = tweet_results.get("result", {})
+                if content_typename == "TimelineTimelineItem":
+                    # Single tweet (nitter: content → content → tweetResult → result)
+                    tweet_content = content.get("content", {})
+                    tweet_result = tweet_content.get("tweetResult", {})
+                    result = tweet_result.get("result", {})
 
-                    tweet = parse_tweet(result)
+                    tweet = parse_tweet(result)  # User is extracted from tweet's core field
                     if tweet:
                         tweets.append(tweet)
 
-                elif entry_type == "TimelineTimelineModule":
-                    # Thread or conversation
+                elif content_typename == "TimelineTimelineModule":
+                    # Thread or conversation (nitter handles these as conversationThread)
                     items = content.get("items", [])
                     for item in items:
                         item_content = item.get("item", {}).get("itemContent", {})
-                        tweet_results = item_content.get("tweet_results", {})
-                        result = tweet_results.get("result", {})
+                        if item_content.get("__typename") == "TimelineTweet":
+                            tweet_result = item_content.get("tweetResult", {})
+                            result = tweet_result.get("result", {})
+                            tweet = parse_tweet(result)
+                            if tweet:
+                                tweets.append(tweet)
 
-                        tweet = parse_tweet(result)
-                        if tweet:
-                            tweets.append(tweet)
+                # Skip cursor entries - they're handled separately for pagination
+                elif content_typename == "TimelineTimelineCursor":
+                    pass
 
     return tweets
 
@@ -243,42 +276,42 @@ def parse_user_from_graphql(graphql_response: Dict[str, Any]) -> Optional[User]:
     Returns:
         User model or None
     """
-    user_data = graphql_response.get("data", {}).get("user", {}).get("result", {})
+    # The actual response structure is data.user_result.result (not data.user.result)
+    user_data = graphql_response.get("data", {}).get("user_result", {}).get("result", {})
     if not user_data:
         return None
 
     return parse_user(user_data)
 
 
-def parse_timeline_from_graphql(
-    graphql_response: Dict[str, Any],
-    user: Optional[User] = None
-) -> Timeline:
+def parse_timeline_from_graphql(graphql_response: Dict[str, Any]) -> Timeline:
     """
     Parse complete timeline from GraphQL response.
 
     Args:
         graphql_response: Full GraphQL response
-        user: Optional user object
 
     Returns:
         Timeline model
     """
     tweets = parse_timeline_tweets(graphql_response)
 
-    # Group tweets (nitter groups tweets in nested lists for threads)
-    # For simplicity, we'll just wrap each tweet in its own list
+    # Group tweets into nested lists (nitter groups related tweets together for threads)
+    # Currently wrapping each tweet individually; could be enhanced to group thread tweets
     content = [[tweet] for tweet in tweets]
 
     # Extract pagination cursors
-    timeline = graphql_response.get("data", {}).get("user", {}).get("result", {}).get("timeline_v2", {})
-    instructions = timeline.get("timeline", {}).get("instructions", [])
+    user_result = graphql_response.get("data", {}).get("user_result", {}).get("result", {})
+    timeline_response = user_result.get("timeline_response", {})
+    timeline = timeline_response.get("timeline", {})
+    instructions = timeline.get("instructions", [])
 
     top_cursor = ""
     bottom_cursor = ""
 
     for instruction in instructions:
-        if instruction.get("type") == "TimelineAddEntries":
+        # Use __typename instead of type
+        if instruction.get("__typename") == "TimelineAddEntries":
             entries = instruction.get("entries", [])
             for entry in entries:
                 entry_id = entry.get("entryId", "")
@@ -307,23 +340,35 @@ def parse_profile_from_graphql(graphql_response: Dict[str, Any]) -> Profile:
     Returns:
         Profile model
     """
-    # Parse user
-    user_data = graphql_response.get("data", {}).get("user", {}).get("result", {})
-    parsed_user = parse_user(user_data) if user_data else User(
-        id="0",
-        username="unknown",
-        fullname="Unknown",
-        join_date=datetime.now()
-    )
+    # Parse user from tweets response
+    user_result = graphql_response.get("data", {}).get("user_result", {}).get("result", {})
+    user = parse_user(user_result) if user_result else None
 
-    # Parse timeline
-    timeline = parse_timeline_from_graphql(graphql_response, parsed_user)
+    # Parse timeline (user will be extracted from each tweet's core field)
+    # Pinned tweets are handled in the timeline with pinned=True flag
+    timeline = parse_timeline_from_graphql(graphql_response)
 
-    # TODO: Parse pinned tweet if present
+    # Extract pinned tweet from timeline if present
     pinned = None
+    for tweet_group in timeline.content:
+        for tweet in tweet_group:
+            if tweet.pinned:
+                pinned = tweet
+                break
+        if pinned:
+            break
+
+    # Ensure we have a user object
+    if not user:
+        user = User(
+            id="0",
+            username="unknown",
+            fullname="Unknown",
+            join_date=datetime.now()
+        )
 
     return Profile(
-        user=parsed_user,
+        user=user,
         pinned=pinned,
         tweets=timeline
     )

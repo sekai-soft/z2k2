@@ -7,6 +7,7 @@ import httpx
 import json
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode
+from authlib.integrations.httpx_client import OAuth1Auth
 
 # Twitter API constants
 CONSUMER_KEY = "3nVuSoBZnx6U4vzUxf5w"
@@ -97,8 +98,8 @@ class TwitterClient:
     """
     Twitter GraphQL API client.
 
-    Note: This requires valid Twitter OAuth tokens (guest or authenticated).
-    For production use, implement proper session management and token rotation.
+    Implements OAuth 1.0a authentication based on nitter's implementation.
+    Requires valid Twitter OAuth tokens from sessions.jsonl.
     """
 
     def __init__(self, oauth_token: str = "", oauth_token_secret: str = ""):
@@ -111,6 +112,16 @@ class TwitterClient:
         """
         self.oauth_token = oauth_token
         self.oauth_token_secret = oauth_token_secret
+
+        # Create OAuth 1.0 auth handler with HMAC-SHA1 signature (nitter's method)
+        self.auth = OAuth1Auth(
+            client_id=CONSUMER_KEY,
+            client_secret=CONSUMER_SECRET,
+            token=oauth_token,
+            token_secret=oauth_token_secret,
+            signature_method="HMAC-SHA1",
+        )
+
         self.client = httpx.AsyncClient(timeout=30.0)
 
     async def close(self):
@@ -119,19 +130,19 @@ class TwitterClient:
 
     def _get_headers(self) -> Dict[str, str]:
         """
-        Generate request headers.
+        Generate request headers for Twitter API.
 
-        Note: This is a simplified version. The full nitter implementation
-        uses OAuth 1.0 signatures. You'll need to implement proper OAuth signing
-        or use guest tokens for production.
+        Based on nitter's implementation from apiutils.nim.
+        Note: OAuth 1.0 authorization header is added automatically by OAuth1Auth.
         """
         return {
-            "authorization": f"Bearer {self.oauth_token}",
+            "authority": "api.x.com",
+            "content-type": "application/json",
             "x-twitter-active-user": "yes",
-            "x-twitter-client-language": "en",
             "accept": "*/*",
             "accept-encoding": "gzip",
             "accept-language": "en-US,en;q=0.9",
+            "connection": "keep-alive",
             "DNT": "1",
         }
 
@@ -156,7 +167,8 @@ class TwitterClient:
         headers = self._get_headers()
 
         try:
-            response = await self.client.get(full_url, headers=headers)
+            # Use OAuth 1.0 auth for signing the request
+            response = await self.client.get(full_url, headers=headers, auth=self.auth)
 
             if response.status_code == 429:
                 raise RateLimitError("Rate limit exceeded")
@@ -213,7 +225,7 @@ class TwitterClient:
             Timeline data from GraphQL API
         """
         variables = {
-            "userId": user_id,
+            "rest_id": user_id,  # API expects rest_id, not userId
             "count": 20,
             "includePromotedContent": False,
             "withDownvotePerspective": False,
