@@ -186,7 +186,7 @@ class Profile(BaseModel):
     tweets: Timeline
 
 
-class List(BaseModel):
+class TwitterList(BaseModel):
     """Twitter list."""
     id: str
     name: str
