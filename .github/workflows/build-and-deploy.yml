@@ -115,6 +115,6 @@ jobs:
       - name: Pull and restart container
         run: |
           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "nixos@gibraltar" \
-             sed -i 's|ghcr.io/sekai-soft/z2k2:latest|ghcr.io/sekai-soft/z2k2:${{ github.sha }}|g' /home/nixos/galerie/compose.yaml && \
+             "sed -i 's|ghcr.io/sekai-soft/z2k2:latest|ghcr.io/sekai-soft/z2k2:${{ github.sha }}|g' /home/nixos/galerie/compose.yaml && \
              docker compose -f /home/nixos/galerie/compose.yaml pull z2k2 && \
              docker compose -f /home/nixos/galerie/compose.yaml up -d"
