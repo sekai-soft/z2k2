@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
 from typing import Optional
-from contextlib import asynccontextmanager
 from z2k2.twitter_client import TwitterClient, TwitterAPIError, RateLimitError
 from z2k2.twitter_parser import parse_user_from_graphql, parse_profile_from_graphql
 from z2k2.models import Profile, User
@@ -10,21 +9,10 @@ from z2k2.session_manager import SessionManager
 # Sessions will be rotated for each request
 session_manager = SessionManager()
 
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    """Lifespan context manager for startup and shutdown events."""
-    # Startup
-    print(f"Session manager initialized with {session_manager.session_count()} session(s)")
-    yield
-    # Shutdown - nothing to cleanup since we create clients per-request
-
-
 app = FastAPI(
     title="z2k2",
     description="API server for selected social networks",
-    version="0.1.0",
-    lifespan=lifespan
+    version="0.1.0"
 )
 
 

@@ -12,7 +12,7 @@ from .models import (
 )
 
 
-def parse_timestamp(timestamp_str: str) -> datetime:
+def _parse_timestamp(timestamp_str: str) -> datetime:
     """Parse Twitter timestamp to datetime."""
     try:
         # Twitter uses ISO 8601 format
@@ -21,7 +21,7 @@ def parse_timestamp(timestamp_str: str) -> datetime:
         return datetime.now()
 
 
-def parse_verified_type(user_data: Dict[str, Any]) -> VerifiedType:
+def _parse_verified_type(user_data: Dict[str, Any]) -> VerifiedType:
     """Parse user verification type."""
     legacy = user_data.get("legacy", {})
     verified = legacy.get("verified", False)
@@ -38,7 +38,7 @@ def parse_verified_type(user_data: Dict[str, Any]) -> VerifiedType:
     return VerifiedType.NONE
 
 
-def parse_user(user_data: Dict[str, Any]) -> User:
+def _parse_user(user_data: Dict[str, Any]) -> User:
     """
     Parse user data from GraphQL response.
 
@@ -55,7 +55,7 @@ def parse_user(user_data: Dict[str, Any]) -> User:
 
     # Parse join date
     created_at = legacy.get("created_at", "")
-    join_date = parse_timestamp(created_at) if created_at else datetime.now()
+    join_date = _parse_timestamp(created_at) if created_at else datetime.now()
 
     return User(
         id=rest_id,
@@ -72,14 +72,14 @@ def parse_user(user_data: Dict[str, Any]) -> User:
         tweets=legacy.get("statuses_count", 0),
         likes=legacy.get("favourites_count", 0),
         media=legacy.get("media_count", 0),
-        verified_type=parse_verified_type(user_data),
+        verified_type=_parse_verified_type(user_data),
         protected=legacy.get("protected", False),
         suspended=user_data.get("__typename") == "UserUnavailable",
         join_date=join_date
     )
 
 
-def parse_tweet_stats(legacy: Dict[str, Any]) -> TweetStats:
+def _parse_tweet_stats(legacy: Dict[str, Any]) -> TweetStats:
     """Parse tweet engagement statistics."""
     return TweetStats(
         replies=legacy.get("reply_count", 0),
@@ -89,7 +89,7 @@ def parse_tweet_stats(legacy: Dict[str, Any]) -> TweetStats:
     )
 
 
-def parse_tweet(tweet_data: Dict[str, Any]) -> Optional[Tweet]:
+def _parse_tweet(tweet_data: Dict[str, Any]) -> Optional[Tweet]:
     """
     Parse tweet data from GraphQL response.
 
@@ -119,7 +119,7 @@ def parse_tweet(tweet_data: Dict[str, Any]) -> Optional[Tweet]:
         user_data = core.get("user_results", {}).get("result", {})
 
     if user_data:
-        user = parse_user(user_data)
+        user = _parse_user(user_data)
     else:
         # Fallback to minimal user
         user = User(
@@ -131,7 +131,7 @@ def parse_tweet(tweet_data: Dict[str, Any]) -> Optional[Tweet]:
 
     # Parse timestamp
     created_at = legacy.get("created_at", "")
-    tweet_time = parse_timestamp(created_at) if created_at else datetime.now()
+    tweet_time = _parse_timestamp(created_at) if created_at else datetime.now()
 
     # Parse media
     photos = []
@@ -184,14 +184,14 @@ def parse_tweet(tweet_data: Dict[str, Any]) -> Optional[Tweet]:
         has_thread=legacy.get("self_thread", {}).get("id_str") is not None,
         available=True,
         source=legacy.get("source", ""),
-        stats=parse_tweet_stats(legacy),
+        stats=_parse_tweet_stats(legacy),
         photos=photos,
         videos=videos,
         gif=gif
     )
 
 
-def parse_timeline_tweets(timeline_data: Dict[str, Any]) -> List[Tweet]:
+def _parse_timeline_tweets(timeline_data: Dict[str, Any]) -> List[Tweet]:
     """
     Parse timeline tweets from GraphQL response.
 
@@ -223,7 +223,7 @@ def parse_timeline_tweets(timeline_data: Dict[str, Any]) -> List[Tweet]:
             tweet_content = content.get("content", {})
             tweet_result = tweet_content.get("tweetResult", {})
             result = tweet_result.get("result", {})
-            tweet = parse_tweet(result)  # Don't pass user - it's in tweet's core field
+            tweet = _parse_tweet(result)  # Don't pass user - it's in tweet's core field
             if tweet:
                 tweet.pinned = True
                 tweets.append(tweet)
@@ -243,7 +243,7 @@ def parse_timeline_tweets(timeline_data: Dict[str, Any]) -> List[Tweet]:
                     tweet_result = tweet_content.get("tweetResult", {})
                     result = tweet_result.get("result", {})
 
-                    tweet = parse_tweet(result)  # User is extracted from tweet's core field
+                    tweet = _parse_tweet(result)  # User is extracted from tweet's core field
                     if tweet:
                         tweets.append(tweet)
 
@@ -255,7 +255,7 @@ def parse_timeline_tweets(timeline_data: Dict[str, Any]) -> List[Tweet]:
                         if item_content.get("__typename") == "TimelineTweet":
                             tweet_result = item_content.get("tweetResult", {})
                             result = tweet_result.get("result", {})
-                            tweet = parse_tweet(result)
+                            tweet = _parse_tweet(result)
                             if tweet:
                                 tweets.append(tweet)
 
@@ -281,10 +281,10 @@ def parse_user_from_graphql(graphql_response: Dict[str, Any]) -> Optional[User]:
     if not user_data:
         return None
 
-    return parse_user(user_data)
+    return _parse_user(user_data)
 
 
-def parse_timeline_from_graphql(graphql_response: Dict[str, Any]) -> Timeline:
+def _parse_timeline_from_graphql(graphql_response: Dict[str, Any]) -> Timeline:
     """
     Parse complete timeline from GraphQL response.
 
@@ -294,7 +294,7 @@ def parse_timeline_from_graphql(graphql_response: Dict[str, Any]) -> Timeline:
     Returns:
         Timeline model
     """
-    tweets = parse_timeline_tweets(graphql_response)
+    tweets = _parse_timeline_tweets(graphql_response)
 
     # Group tweets into nested lists (nitter groups related tweets together for threads)
     # Currently wrapping each tweet individually; could be enhanced to group thread tweets
@@ -342,11 +342,11 @@ def parse_profile_from_graphql(graphql_response: Dict[str, Any]) -> Profile:
     """
     # Parse user from tweets response
     user_result = graphql_response.get("data", {}).get("user_result", {}).get("result", {})
-    user = parse_user(user_result) if user_result else None
+    user = _parse_user(user_result) if user_result else None
 
     # Parse timeline (user will be extracted from each tweet's core field)
     # Pinned tweets are handled in the timeline with pinned=True flag
-    timeline = parse_timeline_from_graphql(graphql_response)
+    timeline = _parse_timeline_from_graphql(graphql_response)
 
     # Extract pinned tweet from timeline if present
     pinned = None

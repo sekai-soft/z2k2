@@ -10,21 +10,17 @@ from urllib.parse import urlencode
 from authlib.integrations.httpx_client import OAuth1Auth
 
 # Twitter API constants
-CONSUMER_KEY = "3nVuSoBZnx6U4vzUxf5w"
-CONSUMER_SECRET = "Bcs59EFbbsdF6Sl9Ng71smgStWEGwXXKSjYvPVt7qys"
+_CONSUMER_KEY = "3nVuSoBZnx6U4vzUxf5w"
+_CONSUMER_SECRET = "Bcs59EFbbsdF6Sl9Ng71smgStWEGwXXKSjYvPVt7qys"
 
 # GraphQL endpoints
-GRAPHQL_BASE = "https://api.x.com/graphql"
+_GRAPHQL_BASE = "https://api.x.com/graphql"
 
-GRAPH_USER = f"{GRAPHQL_BASE}/u7wQyGi6oExe8_TRWGMq4Q/UserResultByScreenNameQuery"
-GRAPH_USER_BY_ID = f"{GRAPHQL_BASE}/oPppcargziU1uDQHAUmH-A/UserResultByIdQuery"
-GRAPH_USER_TWEETS = f"{GRAPHQL_BASE}/JLApJKFY0MxGTzCoK6ps8Q/UserWithProfileTweetsQueryV2"
-GRAPH_USER_TWEETS_AND_REPLIES = f"{GRAPHQL_BASE}/Y86LQY7KMvxn5tu3hFTyPg/UserWithProfileTweetsAndRepliesQueryV2"
-GRAPH_USER_MEDIA = f"{GRAPHQL_BASE}/PDfFf8hGeJvUCiTyWtw4wQ/MediaTimelineV2"
-GRAPH_TWEET_RESULT = f"{GRAPHQL_BASE}/sITyJdhRPpvpEjg4waUmTA/TweetResultByIdQuery"
+_GRAPH_USER = f"{_GRAPHQL_BASE}/u7wQyGi6oExe8_TRWGMq4Q/UserResultByScreenNameQuery"
+_GRAPH_USER_TWEETS = f"{_GRAPHQL_BASE}/JLApJKFY0MxGTzCoK6ps8Q/UserWithProfileTweetsQueryV2"
 
 # GraphQL features (enable/disable various Twitter API features)
-GQL_FEATURES = {
+_GQL_FEATURES = {
     "android_graphql_skip_api_media_color_palette": False,
     "blue_business_profile_image_shape_enabled": False,
     "creator_subscriptions_subscription_count_enabled": False,
@@ -117,8 +113,8 @@ class TwitterClient:
 
         # Create OAuth 1.0 auth handler with HMAC-SHA1 signature (nitter's method)
         self.auth = OAuth1Auth(
-            client_id=CONSUMER_KEY,
-            client_secret=CONSUMER_SECRET,
+            client_id=_CONSUMER_KEY,
+            client_secret=_CONSUMER_SECRET,
             token=oauth_token,
             token_secret=oauth_token_secret,
             signature_method="HMAC-SHA1",
@@ -210,9 +206,9 @@ class TwitterClient:
         variables = json.dumps({"screen_name": username})
         params = {
             "variables": variables,
-            "features": json.dumps(GQL_FEATURES)
+            "features": json.dumps(_GQL_FEATURES)
         }
-        return await self._fetch(GRAPH_USER, params)
+        return await self._fetch(_GRAPH_USER, params)
 
     async def get_user_tweets(
         self,
@@ -245,6 +241,6 @@ class TwitterClient:
 
         params = {
             "variables": json.dumps(variables),
-            "features": json.dumps(GQL_FEATURES)
+            "features": json.dumps(_GQL_FEATURES)
         }
-        return await self._fetch(GRAPH_USER_TWEETS, params)
+        return await self._fetch(_GRAPH_USER_TWEETS, params)

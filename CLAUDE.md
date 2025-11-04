@@ -22,3 +22,15 @@
 - This codebase is based on nitter's reverse-engineered Twitter GraphQL API implementation
 - Session management uses OAuth tokens from `sessions.jsonl` with round-robin rotation
 - All Twitter API code should match nitter's proven patterns
+
+## Code Organization
+
+**Internal vs Public API**: All methods, functions, and classes in the `z2k2/` module that are NOT used in `app.py` must be prefixed with `_` to indicate they are internal implementation details.
+
+Public API (used in `app.py`):
+- `TwitterClient`, `TwitterAPIError`, `RateLimitError`
+- `parse_user_from_graphql()`, `parse_profile_from_graphql()`
+- `User`, `Profile`, `Tweet`, `Timeline`, and related model classes
+- `SessionManager` and its public method: `get_session()`
+
+All other functions, methods, and classes should be prefixed with `_` to mark them as internal.

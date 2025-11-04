@@ -4,14 +4,13 @@ Reads and manages sessions from sessions.jsonl file.
 """
 
 import json
-import random
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
 
 
 @dataclass
-class TwitterSession:
+class _TwitterSession:
     """Twitter OAuth session credentials."""
     oauth_token: str
     oauth_token_secret: str
@@ -32,7 +31,7 @@ class SessionManager:
         Args:
             sessions_file: Path to sessions JSONL file (relative to repo root)
         """
-        self.sessions: List[TwitterSession] = []
+        self.sessions: List[_TwitterSession] = []
         self._current_index = 0
         self._load_sessions(sessions_file)
 
@@ -72,7 +71,7 @@ class SessionManager:
 
                 try:
                     session_data = json.loads(line)
-                    session = TwitterSession(
+                    session = _TwitterSession(
                         oauth_token=session_data["oauth_token"],
                         oauth_token_secret=session_data["oauth_token_secret"]
                     )
@@ -89,12 +88,12 @@ class SessionManager:
 
         print(f"Loaded {len(self.sessions)} session(s) from {sessions_path}")
 
-    def get_session(self) -> TwitterSession:
+    def get_session(self) -> _TwitterSession:
         """
         Get next session using round-robin strategy.
 
         Returns:
-            TwitterSession with oauth credentials
+            _TwitterSession with oauth credentials
         """
         if not self.sessions:
             raise RuntimeError("No sessions available")
@@ -102,33 +101,3 @@ class SessionManager:
         session = self.sessions[self._current_index]
         self._current_index = (self._current_index + 1) % len(self.sessions)
         return session
-
-    def get_random_session(self) -> TwitterSession:
-        """
-        Get a random session.
-
-        Returns:
-            TwitterSession with oauth credentials
-        """
-        if not self.sessions:
-            raise RuntimeError("No sessions available")
-
-        return random.choice(self.sessions)
-
-    def get_all_sessions(self) -> List[TwitterSession]:
-        """
-        Get all loaded sessions.
-
-        Returns:
-            List of all TwitterSession objects
-        """
-        return self.sessions.copy()
-
-    def session_count(self) -> int:
-        """
-        Get number of loaded sessions.
-
-        Returns:
-            Number of sessions
-        """
-        return len(self.sessions)
