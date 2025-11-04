@@ -82,7 +82,7 @@ _GQL_FEATURES = {
 
 class TwitterAPIError(Exception):
     """Twitter API error."""
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(self, message: str, status_code: Optional[int]):
         super().__init__(message)
         self.status_code = status_code
 
@@ -100,7 +100,7 @@ class TwitterClient:
     Requires valid Twitter OAuth tokens from sessions.jsonl.
     """
 
-    def __init__(self, oauth_token: str = "", oauth_token_secret: str = ""):
+    def __init__(self, oauth_token: str, oauth_token_secret: str):
         """
         Initialize Twitter client.
 
@@ -169,10 +169,10 @@ class TwitterClient:
             response = await self.client.get(full_url, headers=headers, auth=self.auth)
 
             if response.status_code == 429:
-                raise RateLimitError("Rate limit exceeded")
+                raise RateLimitError("Rate limit exceeded", 429)
 
             if response.status_code == 503:
-                raise TwitterAPIError("Service unavailable")
+                raise TwitterAPIError("Service unavailable", None)
 
             response.raise_for_status()
 
@@ -181,7 +181,7 @@ class TwitterClient:
             # Check for errors in response
             if "errors" in data:
                 error_msg = ", ".join([e.get("message", str(e)) for e in data["errors"]])
-                raise TwitterAPIError(f"Twitter API error: {error_msg}")
+                raise TwitterAPIError(f"Twitter API error: {error_msg}", None)
 
             return data
 
@@ -191,7 +191,7 @@ class TwitterClient:
                 status_code=e.response.status_code
             )
         except httpx.RequestError as e:
-            raise TwitterAPIError(f"Request error: {str(e)}")
+            raise TwitterAPIError(f"Request error: {str(e)}", None)
 
     async def get_user_by_screen_name(self, username: str) -> Dict[str, Any]:
         """

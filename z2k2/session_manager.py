@@ -24,7 +24,7 @@ class SessionManager:
     session contains oauth_token and oauth_token_secret.
     """
 
-    def __init__(self, sessions_file: str = "sessions.jsonl"):
+    def __init__(self, sessions_file: str):
         """
         Initialize session manager.
 

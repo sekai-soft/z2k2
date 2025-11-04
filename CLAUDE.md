@@ -34,3 +34,7 @@ Public API (used in `app.py`):
 - `SessionManager` and its public method: `get_session()`
 
 All other functions, methods, and classes should be prefixed with `_` to mark them as internal.
+
+## Code Style
+
+**No Default Parameters in Constructors**: Constructors (`__init__` methods) must NOT have default parameter values. All parameters must be explicitly provided when instantiating classes.

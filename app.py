@@ -7,7 +7,7 @@ from z2k2.session_manager import SessionManager
 
 # Initialize session manager
 # Sessions will be rotated for each request
-session_manager = SessionManager()
+session_manager = SessionManager("sessions.jsonl")
 
 app = FastAPI(
     title="z2k2",

@@ -17,13 +17,13 @@ class SqliteCache:
     expires entries older than the specified TTL.
     """
 
-    def __init__(self, db_path: str = ".cache.db", ttl: int = 3600):
+    def __init__(self, db_path: str, ttl: int):
         """
         Initialize cache.
 
         Args:
             db_path: Path to SQLite database file
-            ttl: Time-to-live in seconds (default: 3600 = 1 hour)
+            ttl: Time-to-live in seconds
         """
         self.db_path = db_path
         self.ttl = ttl
@@ -146,7 +146,7 @@ def cached(cache_instance: SqliteCache, key_fn: Callable):
         key_fn: Function that takes method args/kwargs and returns cache key
 
     Example:
-        cache = SqliteCache()
+        cache = SqliteCache(".cache.db", 3600)
 
         @cached(cache, lambda username: f"user_{username}")
         async def get_user(self, username: str):
