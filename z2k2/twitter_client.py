@@ -86,7 +86,9 @@ GQL_FEATURES = {
 
 class TwitterAPIError(Exception):
     """Twitter API error."""
-    pass
+    def __init__(self, message: str, status_code: Optional[int] = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class RateLimitError(TwitterAPIError):
@@ -188,7 +190,10 @@ class TwitterClient:
             return data
 
         except httpx.HTTPStatusError as e:
-            raise TwitterAPIError(f"HTTP error: {e.response.status_code}")
+            raise TwitterAPIError(
+                f"{e.response.status_code}: {e.response.text if e.response.text else 'HTTP error'}",
+                status_code=e.response.status_code
+            )
         except httpx.RequestError as e:
             raise TwitterAPIError(f"Request error: {str(e)}")
 

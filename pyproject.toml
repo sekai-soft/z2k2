@@ -1,7 +1,7 @@
 [project]
 name = "z2k2"
 version = "0.1.0"
-description = "API and RSS server for selected social networks"
+description = "API server for selected social networks"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

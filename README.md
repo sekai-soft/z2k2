@@ -1,5 +1,5 @@
 # z2k2
-API and RSS server for selected social networks
+API server for selected social networks
 
 ## Development
 
