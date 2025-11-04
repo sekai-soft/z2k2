@@ -137,24 +137,27 @@ class SqliteCache:
             conn.close()
 
 
-def cached(cache_instance: SqliteCache, key_fn: Callable):
+def cached(cache_getter: Callable[[], SqliteCache], key_fn: Callable):
     """
     Decorator to cache async method results.
 
     Args:
-        cache_instance: SqliteCache instance to use
+        cache_getter: Callable that returns the SqliteCache instance (evaluated at runtime)
         key_fn: Function that takes method args/kwargs and returns cache key
 
     Example:
         cache = SqliteCache(".cache.db", 3600)
 
-        @cached(cache, lambda username: f"user_{username}")
+        @cached(lambda: cache, lambda username: f"user_{username}")
         async def get_user(self, username: str):
             return await fetch_user(username)
     """
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
+            # Get cache instance at runtime (not decoration time)
+            cache_instance = cache_getter()
+
             # Generate cache key
             # Skip 'self' argument if it's a method
             func_args = args[1:] if args and hasattr(args[0], func.__name__) else args

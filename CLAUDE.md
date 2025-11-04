@@ -32,9 +32,25 @@ Public API (used in `app.py`):
 - `parse_user_from_graphql()`, `parse_profile_from_graphql()`
 - `User`, `Profile`, `Tweet`, `Timeline`, and related model classes
 - `SessionManager` and its public method: `get_session()`
+- `SqliteCache` (initialized in app.py and set to `twitter_client._cache`)
 
 All other functions, methods, and classes should be prefixed with `_` to mark them as internal.
 
 ## Code Style
 
 **No Default Parameters in Constructors**: Constructors (`__init__` methods) must NOT have default parameter values. All parameters must be explicitly provided when instantiating classes.
+
+**Cache Key Naming Convention**: When using the `@cached` decorator, cache keys must follow this pattern:
+- Format: `{module}.{function_name}.{param1}.{param2}...`
+- Start with the module/class name (e.g., `twitter_client`)
+- Include the full method/function name
+- Include all relevant parameters separated by dots
+- Use descriptive default values (e.g., `first` instead of empty string)
+
+Example:
+```python
+@cached(lambda: _cache, lambda username: f"twitter_client.get_user_by_screen_name.{username}")
+@cached(lambda: _cache, lambda user_id, cursor=None: f"twitter_client.get_user_tweets.{user_id}.{cursor or 'first'}")
+```
+
+Note: The cache must be passed as a lambda (`lambda: _cache`) to defer evaluation until runtime, not decoration time.

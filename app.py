@@ -1,9 +1,14 @@
 from fastapi import FastAPI, HTTPException, Query
 from typing import Optional
+from z2k2 import twitter_client
 from z2k2.twitter_client import TwitterClient, TwitterAPIError, RateLimitError
 from z2k2.twitter_parser import parse_user_from_graphql, parse_profile_from_graphql
 from z2k2.models import Profile, User
 from z2k2.session_manager import SessionManager
+from z2k2.sqlite_cache import SqliteCache
+
+# Initialize cache for API responses (1 hour TTL)
+twitter_client._cache = SqliteCache("cache.db", 3600)
 
 # Initialize session manager
 # Sessions will be rotated for each request

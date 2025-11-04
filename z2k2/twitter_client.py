@@ -8,6 +8,7 @@ import json
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 from authlib.integrations.httpx_client import OAuth1Auth
+from z2k2.sqlite_cache import SqliteCache, cached
 
 # Twitter API constants
 _CONSUMER_KEY = "3nVuSoBZnx6U4vzUxf5w"
@@ -78,6 +79,13 @@ _GQL_FEATURES = {
     "articles_api_enabled": False,
     "responsive_web_grok_analysis_button_from_backend": False
 }
+
+# Module-level cache instance (set from app.py)
+# This will be assigned during app initialization
+# Note: We use lambda in @cached decorator (e.g., @cached(lambda: _cache, ...))
+# to defer cache lookup until runtime, not decoration time, since _cache
+# is not set until app.py runs
+_cache: SqliteCache
 
 
 class TwitterAPIError(Exception):
@@ -193,6 +201,7 @@ class TwitterClient:
         except httpx.RequestError as e:
             raise TwitterAPIError(f"Request error: {str(e)}", None)
 
+    @cached(lambda: _cache, lambda username: f"twitter_client.get_user_by_screen_name.{username}")
     async def get_user_by_screen_name(self, username: str) -> Dict[str, Any]:
         """
         Get user data by username (screen name).
@@ -210,6 +219,7 @@ class TwitterClient:
         }
         return await self._fetch(_GRAPH_USER, params)
 
+    @cached(lambda: _cache, lambda user_id, cursor=None: f"twitter_client.get_user_tweets.{user_id}.{cursor or 'first'}")
     async def get_user_tweets(
         self,
         user_id: str,
