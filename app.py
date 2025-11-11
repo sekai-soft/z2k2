@@ -9,8 +9,8 @@ from z2k2.models import Profile, User
 from z2k2.session_manager import SessionManager
 from z2k2.sqlite_cache import SqliteCache
 
-# Load environment variables from .env file
-load_dotenv()
+if os.path.exists('.dev.env'):
+    load_dotenv('.dev.env')
 
 # Get mandatory cache configuration from environment variables
 cache_path = os.environ["CACHE_SQLITE_PATH"]

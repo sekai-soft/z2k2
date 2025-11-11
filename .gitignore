@@ -12,3 +12,4 @@ wheels/
 sessions.jsonl
 cache.db
 .env
+.dev.env
