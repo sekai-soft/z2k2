@@ -18,15 +18,15 @@ class SqliteCache:
     expires entries older than the specified TTL.
     """
 
-    def __init__(self, db_path: str, ttl: int, ttl_jitter: float):
+    def __init__(self, db_path: str, ttl: int, ttl_jitter: int):
         """
         Initialize cache.
 
         Args:
             db_path: Path to SQLite database file
             ttl: Time-to-live in seconds
-            ttl_jitter: Jitter factor (0.0 to 1.0) to randomize expiration.
-                        For example, 0.1 means ±10% randomization.
+            ttl_jitter: Maximum jitter in seconds to randomize expiration.
+                        For example, 360 means ±360 seconds (±6 minutes).
         """
         self.db_path = db_path
         self.ttl = ttl
@@ -58,11 +58,10 @@ class SqliteCache:
         if self.ttl_jitter == 0:
             return self.ttl
 
-        # Apply jitter: TTL * (1 ± jitter)
-        # For example, with jitter=0.1 and ttl=3600:
-        # Result will be between 3240 and 3960 seconds (3600 * 0.9 to 3600 * 1.1)
-        jitter_range = self.ttl * self.ttl_jitter
-        return int(self.ttl + random.uniform(-jitter_range, jitter_range))
+        # Apply jitter: TTL ± jitter_seconds
+        # For example, with ttl=3600 and jitter=360:
+        # Result will be between 3240 and 3960 seconds
+        return int(self.ttl + random.uniform(-self.ttl_jitter, self.ttl_jitter))
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         """
@@ -146,7 +145,7 @@ class SqliteCache:
         try:
             current_time = int(time.time())
             # Use maximum possible TTL to avoid deleting entries that might still be valid
-            max_ttl = int(self.ttl * (1 + self.ttl_jitter))
+            max_ttl = self.ttl + self.ttl_jitter
             conn.execute(
                 "DELETE FROM cache WHERE ? - timestamp > ?",
                 (current_time, max_ttl)
@@ -174,7 +173,7 @@ def cached(cache_getter: Callable[[], SqliteCache], key_fn: Callable):
         key_fn: Function that takes method args/kwargs and returns cache key
 
     Example:
-        cache = SqliteCache(".cache.db", 3600, 0.1)
+        cache = SqliteCache(".cache.db", 3600, 360)
 
         @cached(lambda: cache, lambda username: f"user_{username}")
         async def get_user(self, username: str):
