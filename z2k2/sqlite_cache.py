@@ -5,6 +5,7 @@ Generic SQLite-based cache with TTL support.
 import sqlite3
 import json
 import time
+import random
 from typing import Optional, Dict, Any, Callable
 from functools import wraps
 
@@ -17,16 +18,19 @@ class SqliteCache:
     expires entries older than the specified TTL.
     """
 
-    def __init__(self, db_path: str, ttl: int):
+    def __init__(self, db_path: str, ttl: int, ttl_jitter: float):
         """
         Initialize cache.
 
         Args:
             db_path: Path to SQLite database file
             ttl: Time-to-live in seconds
+            ttl_jitter: Jitter factor (0.0 to 1.0) to randomize expiration.
+                        For example, 0.1 means ±10% randomization.
         """
         self.db_path = db_path
         self.ttl = ttl
+        self.ttl_jitter = ttl_jitter
         self._init_db()
 
     def _init_db(self):
@@ -43,6 +47,22 @@ class SqliteCache:
             conn.commit()
         finally:
             conn.close()
+
+    def _get_effective_ttl(self) -> int:
+        """
+        Get TTL with randomized jitter to prevent cache stampede.
+
+        Returns:
+            Effective TTL with random jitter applied
+        """
+        if self.ttl_jitter == 0:
+            return self.ttl
+
+        # Apply jitter: TTL * (1 ± jitter)
+        # For example, with jitter=0.1 and ttl=3600:
+        # Result will be between 3240 and 3960 seconds (3600 * 0.9 to 3600 * 1.1)
+        jitter_range = self.ttl * self.ttl_jitter
+        return int(self.ttl + random.uniform(-jitter_range, jitter_range))
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         """
@@ -68,8 +88,9 @@ class SqliteCache:
             value, timestamp = row
             current_time = int(time.time())
 
-            # Check if cache entry is expired
-            if current_time - timestamp > self.ttl:
+            # Check if cache entry is expired using randomized TTL
+            effective_ttl = self._get_effective_ttl()
+            if current_time - timestamp > effective_ttl:
                 # Delete expired entry
                 conn.execute("DELETE FROM cache WHERE key = ?", (key,))
                 conn.commit()
@@ -115,13 +136,20 @@ class SqliteCache:
             conn.close()
 
     def clear_expired(self):
-        """Clear all expired cache entries."""
+        """
+        Clear all expired cache entries.
+
+        Uses maximum TTL (with positive jitter) to ensure we only delete
+        entries that are guaranteed to be expired.
+        """
         conn = sqlite3.connect(self.db_path)
         try:
             current_time = int(time.time())
+            # Use maximum possible TTL to avoid deleting entries that might still be valid
+            max_ttl = int(self.ttl * (1 + self.ttl_jitter))
             conn.execute(
                 "DELETE FROM cache WHERE ? - timestamp > ?",
-                (current_time, self.ttl)
+                (current_time, max_ttl)
             )
             conn.commit()
         finally:
@@ -146,7 +174,7 @@ def cached(cache_getter: Callable[[], SqliteCache], key_fn: Callable):
         key_fn: Function that takes method args/kwargs and returns cache key
 
     Example:
-        cache = SqliteCache(".cache.db", 3600)
+        cache = SqliteCache(".cache.db", 3600, 0.1)
 
         @cached(lambda: cache, lambda username: f"user_{username}")
         async def get_user(self, username: str):

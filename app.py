@@ -15,9 +15,11 @@ if os.path.exists('.dev.env'):
 # Get mandatory cache configuration from environment variables
 cache_path = os.environ["CACHE_SQLITE_PATH"]
 cache_ttl = int(os.environ["CACHE_SQLITE_TTL_SECONDS"])
+# Optional jitter for cache expiration randomization (default: 10%)
+cache_ttl_jitter = float(os.environ.get("CACHE_SQLITE_TTL_JITTER", "0.1"))
 
 # Initialize cache for API responses
-twitter_client._cache = SqliteCache(cache_path, cache_ttl)
+twitter_client._cache = SqliteCache(cache_path, cache_ttl, cache_ttl_jitter)
 
 # Initialize session manager
 # Sessions will be rotated for each request
