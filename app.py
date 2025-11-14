@@ -2,32 +2,45 @@ from fastapi import FastAPI, HTTPException, Query
 from typing import Optional
 import os
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 from z2k2 import twitter_client
 from z2k2.twitter_client import TwitterClient, TwitterAPIError, RateLimitError
 from z2k2.twitter_parser import parse_user_from_graphql, parse_profile_from_graphql
 from z2k2.models import Profile, User
 from z2k2.session_manager import SessionManager
-from z2k2.sqlite_cache import SqliteCache
+from z2k2.postgres_cache import PostgresCache
 
 if os.path.exists('.dev.env'):
     load_dotenv('.dev.env')
 
 # Get mandatory cache configuration from environment variables
-cache_path = os.environ["CACHE_SQLITE_PATH"]
-cache_ttl = int(os.environ["CACHE_SQLITE_TTL_SECONDS"])
-cache_ttl_jitter = int(os.environ["CACHE_SQLITE_TTL_JITTER_SECONDS"])
-
-# Initialize cache for API responses
-twitter_client._cache = SqliteCache(cache_path, cache_ttl, cache_ttl_jitter)
+cache_ttl = int(os.environ["CACHE_TTL_SECONDS"])
+cache_ttl_jitter = int(os.environ["CACHE_TTL_JITTER_SECONDS"])
 
 # Initialize session manager
 # Sessions will be rotated for each request
 session_manager = SessionManager("sessions.jsonl")
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Lifespan event handler - runs on startup and shutdown."""
+    # Startup: Initialize database and cache
+    from z2k2.database import _init_db
+    _init_db()
+
+    # Initialize cache for API responses
+    twitter_client._cache = PostgresCache(cache_ttl, cache_ttl_jitter)
+
+    yield
+    # Shutdown: cleanup if needed
+
+
 app = FastAPI(
     title="z2k2",
     description="API server for selected social networks",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 

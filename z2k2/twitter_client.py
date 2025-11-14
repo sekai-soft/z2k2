@@ -8,7 +8,7 @@ import json
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 from authlib.integrations.httpx_client import OAuth1Auth
-from z2k2.sqlite_cache import SqliteCache, cached
+from z2k2.postgres_cache import PostgresCache, cached
 
 # Twitter API constants
 _CONSUMER_KEY = "3nVuSoBZnx6U4vzUxf5w"
@@ -85,7 +85,7 @@ _GQL_FEATURES = {
 # Note: We use lambda in @cached decorator (e.g., @cached(lambda: _cache, ...))
 # to defer cache lookup until runtime, not decoration time, since _cache
 # is not set until app.py runs
-_cache: SqliteCache
+_cache: PostgresCache
 
 
 class TwitterAPIError(Exception):

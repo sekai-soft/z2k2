@@ -41,7 +41,7 @@ Public API (used in `app.py`):
 - `parse_user_from_graphql()`, `parse_profile_from_graphql()`
 - `User`, `Profile`, `Tweet`, `Timeline`, and related model classes
 - `SessionManager` and its public method: `get_session()`
-- `SqliteCache` (initialized in app.py and set to `twitter_client._cache`)
+- `PostgresCache` (initialized in app.py and set to `twitter_client._cache`)
 
 All other functions, methods, and classes should be prefixed with `_` to mark them as internal.
 

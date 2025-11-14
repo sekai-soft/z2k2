@@ -29,4 +29,5 @@ The API will be available at http://127.0.0.1:8000
 ## Requirements
 
 - Python 3.13+
+- PostgreSQL database (configure with `DATABASE_URL` environment variable)
 - Twitter OAuth sessions in `sessions.jsonl` (required for API access)
