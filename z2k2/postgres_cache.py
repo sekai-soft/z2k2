@@ -4,6 +4,7 @@ Generic PostgreSQL-based cache with TTL support.
 
 import json
 import time
+import random
 from typing import Optional, Dict, Any, Callable
 from functools import wraps
 from z2k2.database import get_db_context
@@ -18,14 +19,32 @@ class PostgresCache:
     expires entries older than the specified TTL.
     """
 
-    def __init__(self, ttl: int):
+    def __init__(self, ttl: int, ttl_jitter: int):
         """
         Initialize cache.
 
         Args:
             ttl: Time-to-live in seconds
+            ttl_jitter: Maximum jitter in seconds to randomize expiration.
+                        For example, 360 means ±360 seconds (±6 minutes).
         """
         self.ttl = ttl
+        self.ttl_jitter = ttl_jitter
+
+    def _get_effective_ttl(self) -> int:
+        """
+        Get TTL with randomized jitter to prevent cache stampede.
+
+        Returns:
+            Effective TTL with random jitter applied
+        """
+        if self.ttl_jitter == 0:
+            return self.ttl
+
+        # Apply jitter: TTL ± jitter_seconds
+        # For example, with ttl=3600 and jitter=360:
+        # Result will be between 3240 and 3960 seconds
+        return int(self.ttl + random.uniform(-self.ttl_jitter, self.ttl_jitter))
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         """
@@ -45,8 +64,9 @@ class PostgresCache:
 
             current_time = int(time.time())
 
-            # Check if cache entry is expired
-            if current_time - cache_entry.timestamp > self.ttl:
+            # Check if cache entry is expired using randomized TTL
+            effective_ttl = self._get_effective_ttl()
+            if current_time - cache_entry.timestamp > effective_ttl:
                 # Delete expired entry
                 db.delete(cache_entry)
                 db.commit()
@@ -98,11 +118,18 @@ class PostgresCache:
                 db.commit()
 
     def clear_expired(self):
-        """Clear all expired cache entries."""
+        """
+        Clear all expired cache entries.
+
+        Uses maximum TTL (with positive jitter) to ensure we only delete
+        entries that are guaranteed to be expired.
+        """
         with get_db_context() as db:
             current_time = int(time.time())
+            # Use maximum possible TTL to avoid deleting entries that might still be valid
+            max_ttl = self.ttl + self.ttl_jitter
             db.query(Cache).filter(
-                current_time - Cache.timestamp > self.ttl
+                current_time - Cache.timestamp > max_ttl
             ).delete(synchronize_session=False)
             db.commit()
 
@@ -122,7 +149,7 @@ def cached(cache_getter: Callable[[], PostgresCache], key_fn: Callable):
         key_fn: Function that takes method args/kwargs and returns cache key
 
     Example:
-        cache = PostgresCache(3600)
+        cache = PostgresCache(3600, 360)
 
         @cached(lambda: cache, lambda username: f"user_{username}")
         async def get_user(self, username: str):

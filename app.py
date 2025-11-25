@@ -15,14 +15,15 @@ from z2k2.postgres_cache import PostgresCache
 from z2k2.database import init_db
 
 
-# Get cache TTL from environment variables
+# Get cache configuration from environment variables
 cache_ttl = int(os.environ["CACHE_TTL_SECONDS"])
+cache_ttl_jitter = int(os.environ["CACHE_TTL_JITTER_SECONDS"])
 
 # Initialize database
 init_db()
 
 # Initialize cache for API responses
-twitter_client._cache = PostgresCache(cache_ttl)
+twitter_client._cache = PostgresCache(cache_ttl, cache_ttl_jitter)
 
 # Initialize session manager
 # Sessions will be rotated for each request
