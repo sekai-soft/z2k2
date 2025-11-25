@@ -1,23 +1,28 @@
+import os
 from fastapi import FastAPI, HTTPException, Query
 from typing import Optional
-import os
 from dotenv import load_dotenv
+
+if os.path.exists('.dev.env'):
+    load_dotenv('.dev.env')
+
 from z2k2 import twitter_client
 from z2k2.twitter_client import TwitterClient, TwitterAPIError, RateLimitError
 from z2k2.twitter_parser import parse_user_from_graphql, parse_profile_from_graphql
 from z2k2.models import Profile, User
 from z2k2.session_manager import SessionManager
-from z2k2.sqlite_cache import SqliteCache
+from z2k2.postgres_cache import PostgresCache
+from z2k2.database import init_db
 
-if os.path.exists('.dev.env'):
-    load_dotenv('.dev.env')
 
-# Get mandatory cache configuration from environment variables
-cache_path = os.environ["CACHE_SQLITE_PATH"]
-cache_ttl = int(os.environ["CACHE_SQLITE_TTL_SECONDS"])
+# Get cache TTL from environment variables
+cache_ttl = int(os.environ["CACHE_TTL_SECONDS"])
+
+# Initialize database
+init_db()
 
 # Initialize cache for API responses
-twitter_client._cache = SqliteCache(cache_path, cache_ttl)
+twitter_client._cache = PostgresCache(cache_ttl)
 
 # Initialize session manager
 # Sessions will be rotated for each request

@@ -1,48 +1,31 @@
 """
-Generic SQLite-based cache with TTL support.
+Generic PostgreSQL-based cache with TTL support.
 """
 
-import sqlite3
 import json
 import time
 from typing import Optional, Dict, Any, Callable
 from functools import wraps
+from z2k2.database import get_db_context
+from z2k2.db_models import Cache
 
 
-class SqliteCache:
+class PostgresCache:
     """
-    Generic SQLite-based cache with automatic expiration.
+    Generic PostgreSQL-based cache with automatic expiration.
 
     Stores key-value pairs with timestamps and automatically
     expires entries older than the specified TTL.
     """
 
-    def __init__(self, db_path: str, ttl: int):
+    def __init__(self, ttl: int):
         """
         Initialize cache.
 
         Args:
-            db_path: Path to SQLite database file
             ttl: Time-to-live in seconds
         """
-        self.db_path = db_path
         self.ttl = ttl
-        self._init_db()
-
-    def _init_db(self):
-        """Initialize database schema."""
-        conn = sqlite3.connect(self.db_path)
-        try:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS cache (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL,
-                    timestamp INTEGER NOT NULL
-                )
-            """)
-            conn.commit()
-        finally:
-            conn.close()
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         """
@@ -54,30 +37,22 @@ class SqliteCache:
         Returns:
             Cached value or None if not found/expired
         """
-        conn = sqlite3.connect(self.db_path)
-        try:
-            cursor = conn.execute(
-                "SELECT value, timestamp FROM cache WHERE key = ?",
-                (key,)
-            )
-            row = cursor.fetchone()
+        with get_db_context() as db:
+            cache_entry = db.query(Cache).filter(Cache.key == key).first()
 
-            if row is None:
+            if cache_entry is None:
                 return None
 
-            value, timestamp = row
             current_time = int(time.time())
 
             # Check if cache entry is expired
-            if current_time - timestamp > self.ttl:
+            if current_time - cache_entry.timestamp > self.ttl:
                 # Delete expired entry
-                conn.execute("DELETE FROM cache WHERE key = ?", (key,))
-                conn.commit()
+                db.delete(cache_entry)
+                db.commit()
                 return None
 
-            return json.loads(value)
-        finally:
-            conn.close()
+            return json.loads(cache_entry.value)
 
     def set(self, key: str, value: Dict[str, Any]):
         """
@@ -87,18 +62,27 @@ class SqliteCache:
             key: Cache key
             value: Value to cache (will be JSON serialized)
         """
-        conn = sqlite3.connect(self.db_path)
-        try:
+        with get_db_context() as db:
             timestamp = int(time.time())
             value_json = json.dumps(value)
 
-            conn.execute(
-                "INSERT OR REPLACE INTO cache (key, value, timestamp) VALUES (?, ?, ?)",
-                (key, value_json, timestamp)
-            )
-            conn.commit()
-        finally:
-            conn.close()
+            # Check if entry exists
+            cache_entry = db.query(Cache).filter(Cache.key == key).first()
+
+            if cache_entry:
+                # Update existing entry
+                cache_entry.value = value_json
+                cache_entry.timestamp = timestamp
+            else:
+                # Create new entry
+                cache_entry = Cache(
+                    key=key,
+                    value=value_json,
+                    timestamp=timestamp
+                )
+                db.add(cache_entry)
+
+            db.commit()
 
     def delete(self, key: str):
         """
@@ -107,46 +91,38 @@ class SqliteCache:
         Args:
             key: Cache key to delete
         """
-        conn = sqlite3.connect(self.db_path)
-        try:
-            conn.execute("DELETE FROM cache WHERE key = ?", (key,))
-            conn.commit()
-        finally:
-            conn.close()
+        with get_db_context() as db:
+            cache_entry = db.query(Cache).filter(Cache.key == key).first()
+            if cache_entry:
+                db.delete(cache_entry)
+                db.commit()
 
     def clear_expired(self):
         """Clear all expired cache entries."""
-        conn = sqlite3.connect(self.db_path)
-        try:
+        with get_db_context() as db:
             current_time = int(time.time())
-            conn.execute(
-                "DELETE FROM cache WHERE ? - timestamp > ?",
-                (current_time, self.ttl)
-            )
-            conn.commit()
-        finally:
-            conn.close()
+            db.query(Cache).filter(
+                current_time - Cache.timestamp > self.ttl
+            ).delete(synchronize_session=False)
+            db.commit()
 
     def clear_all(self):
         """Clear all cache entries."""
-        conn = sqlite3.connect(self.db_path)
-        try:
-            conn.execute("DELETE FROM cache")
-            conn.commit()
-        finally:
-            conn.close()
+        with get_db_context() as db:
+            db.query(Cache).delete(synchronize_session=False)
+            db.commit()
 
 
-def cached(cache_getter: Callable[[], SqliteCache], key_fn: Callable):
+def cached(cache_getter: Callable[[], PostgresCache], key_fn: Callable):
     """
     Decorator to cache async method results.
 
     Args:
-        cache_getter: Callable that returns the SqliteCache instance (evaluated at runtime)
+        cache_getter: Callable that returns the PostgresCache instance (evaluated at runtime)
         key_fn: Function that takes method args/kwargs and returns cache key
 
     Example:
-        cache = SqliteCache(".cache.db", 3600)
+        cache = PostgresCache(3600)
 
         @cached(lambda: cache, lambda username: f"user_{username}")
         async def get_user(self, username: str):
